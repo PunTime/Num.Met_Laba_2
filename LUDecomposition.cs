@@ -1,108 +1,86 @@
 ﻿using System;
-using System.Numerics;
 
+// Клас для LU-розкладу та розв’язку СЛАР
 public class LUDecomposition
 {
-    public static void Solve()
+    public Matrix L { get; private set; } // нижня трикутна матриця
+    public Matrix U { get; private set; } // верхня трикутна матриця
+    public Vector Y { get; private set; } // проміжний вектор (Ly = b)
+    public Vector X { get; private set; } // розв’язок системи (Ux = y)
+
+    private Matrix A; // початкова матриця
+    private Vector b; // вектор правої частини
+
+    public LUDecomposition(Matrix A, Vector b)
     {
-        Matrix A = new Matrix(new double[,]
+        this.A = A;
+        this.b = b;
+    }
+
+    // Виконання LU-розкладу та розв’язку
+    public void Solve()
+    {
+        int n = A.Rows;
+
+        double[,] Udata = new double[n, n]; // матриця U
+        double[,] Ldata = new double[n, n]; // матриця L
+
+        // Ініціалізація L як одиничної
+        for (int i = 0; i < n; i++)
+            Ldata[i, i] = 1.0;
+
+        // ===== LU-розклад =====
+        for (int k = 0; k < n; k++)
         {
-            {3, 2, 1},
-            {3, 1, 4},
-            {5, 8, 1}
-        });
+            // формування k-го рядка U
+            Udata[k, k] = A.Data[k, k];
+            for (int j = k + 1; j < n; j++)
+                Udata[k, j] = A.Data[k, j];
 
-        Vector b = new Vector(new double[] { 10, 12, 18 });
-
-        A.Print("A");
-        b.Print("b");
-
-        // ===== КРОК 1 =====
-        Console.WriteLine("\n=== КРОК 1 ===");
-
-        Matrix L1 = new Matrix(new double[,]
-        {
-            {1.0/3, 0, 0},
-            {-1, 1, 0},
-            {-5.0/3, 0, 1}
-        });
-
-        L1.Print("L1");
-
-        Matrix A1 = Matrix.Multiply(L1, A);
-        Vector b1 = Matrix.Multiply(L1, b);
-
-        A1.Print("A1");
-        b1.Print("b1");
-
-        // ===== КРОК 2 =====
-        Console.WriteLine("\n=== КРОК 2 ===");
-
-        double a22 = A1.Data[1, 1];
-        double a32 = A1.Data[2, 1];
-
-        Matrix L2 = new Matrix(new double[,]
-        {
-            {1,0,0},
-            {0,1.0/a22,0},
-            {0,-a32/a22,1}
-        });
-
-        L2.Print("L2");
-
-        Matrix A2 = Matrix.Multiply(L2, A1);
-        Vector b2 = Matrix.Multiply(L2, b1);
-
-        A2.Print("A2");
-        b2.Print("b2");
-
-        // ===== КРОК 3 =====
-        Console.WriteLine("\n=== КРОК 3 ===");
-
-        double a33 = A2.Data[2, 2];
-
-        Matrix L3 = new Matrix(new double[,]
-        {
-            {1,0,0},
-            {0,1,0},
-            {0,0,1.0/a33}
-        });
-
-        L3.Print("L3");
-
-        Matrix U = Matrix.Multiply(L3, A2);
-        Vector B = Matrix.Multiply(L3, b2);
-
-        U.Print("U");
-        B.Print("B");
-
-        // ===== ЗНАХОДИМО L =====
-        Console.WriteLine("\n=== L ===");
-
-        Matrix L = Matrix.Multiply(
-                        Matrix.Multiply(
-                            Matrix.InverseLower(L1),
-                            Matrix.InverseLower(L2)),
-                        Matrix.InverseLower(L3));
-
-        L.Print("L");
-
-        // ===== ЗВОРОТНІЙ ХІД =====
-        Console.WriteLine("\n=== Розв’язок ===");
-
-        double[] x = new double[3];
-
-        for (int i = 2; i >= 0; i--)
-        {
-            double sum = 0;
-            for (int j = i + 1; j < 3; j++)
-                sum += U.Data[i, j] * x[j];
-
-            x[i] = (B.Data[i] - sum) / U.Data[i, i];
+            // обчислення елементів L та оновлення A
+            for (int i = k + 1; i < n; i++)
+            {
+                Ldata[i, k] = A.Data[i, k] / Udata[k, k]; // коефіцієнт
+                for (int j = k + 1; j < n; j++)
+                    A.Data[i, j] -= Ldata[i, k] * Udata[k, j]; // виключення
+            }
         }
 
-        Console.WriteLine("\nx:");
-        foreach (var xi in x)
-            Console.WriteLine($"{xi:F2}");
+        // збереження результатів
+        L = new Matrix(Ldata);
+        U = new Matrix(Udata);
+
+        // ===== Прямий хід: Ly = b =====
+        double[] y = new double[n];
+        for (int i = 0; i < n; i++)
+        {
+            double sum = 0;
+            for (int j = 0; j < i; j++)
+                sum += Ldata[i, j] * y[j];
+
+            y[i] = b.Data[i] - sum; // обчислення y[i]
+        }
+        Y = new Vector(y);
+
+        // ===== Зворотний хід: Ux = y =====
+        double[] x = new double[n];
+        for (int i = n - 1; i >= 0; i--)
+        {
+            double sum = 0;
+            for (int j = i + 1; j < n; j++)
+                sum += Udata[i, j] * x[j];
+
+            x[i] = (y[i] - sum) / Udata[i, i]; // обчислення x[i]
+        }
+        X = new Vector(x);
+    }
+
+    // Вивід результатів
+    public void PrintResults()
+    {
+        L.Print("L");
+        U.Print("U");
+        Y.Print("y");
+        X.Print("x");
     }
 }
